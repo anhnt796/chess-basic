@@ -14,7 +14,7 @@
 - [ ] add PGN format (using long-algebraic notation)
 - [ ] add menu
 - [ ] option for choosing color
-- [ ] option for choosing size of board
+- [ ] option for choosing size of board	
 - [x] fix size of piece
 - [ ] rotate the board
 - [ ] save/load functionality

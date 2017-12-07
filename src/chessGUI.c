@@ -3,12 +3,19 @@
 #include "int2utf8.h"
 #include "pieceConst.h"
 #include "string.h"
+#include "stdlib.h"
+#include "sys/types.h"
+#include "sys/socket.h"
+#include "netinet/in.h"
+#include "netdb.h"
+#include "controller.h"
 
 static gboolean button_pressed(GtkWidget *, GdkEventButton *, GtkLabel *[][8]);
 static void play(GtkWidget *, GtkWidget *);
 static void backToMain(GtkWidget *, GtkWidget *);
 static void create_sv(GtkWindow *, gchar *);
 static void connect_sv(GtkWindow *, gchar *);
+static void updateGUI();
 
 /*Css*/
 GtkCssProvider *provider;
@@ -19,18 +26,14 @@ static const GdkRGBA green = {0.5899, 0.8867, 0.3906, 1};
 static const GdkRGBA dbrown = {0.8242, 0.5508, 0.2773, 1};
 static const GdkRGBA lbrown = {0.9805, 0.8047, 0.6094, 1};
 GdkColor prevColor;
-int clicks = 0;
-int player = 0;
 GtkWidget *table, *prevEventbox, *hpane, *infogrid, *textview, *scroll_win;
 GtkTextBuffer *buffer;
 GtkTextIter txtiter;
 GtkLabel *currentPlayer, *row_label, *col_label;
+/*container for the labels of the gui board*/
+GtkLabel *labelBoard[8][8];
 
-char note[5];
-char mnum[11]; // max int size is 10 chars long + 0 char
-int move[4]; //src row col; dest row col 
-int board[8][8];
-int movecnt = 0;
+
 
 extern int makemove(int player, int *move, int board[][8]);
 
@@ -42,12 +45,25 @@ extern void resetPassantArrays(void);
 extern int kingUnderAttack(int player, int board[][8]);
 
 extern int hasMovement(int player, int board[][8]);
+
+extern decoded getresults(char *input);
+
 int main(int argc, char *argv[]) {
     /*fill the board array with pieces*/
     initBoard(board);
     resetPassantArrays();
     GtkWidget *window, *eventbox;
     GtkLabel *label;
+    /* Secure glib */
+    if( ! g_thread_supported() )
+        g_thread_init( NULL );
+
+    /* Secure gtk */
+    gdk_threads_init();
+
+    /* Obtain gtk's global lock */
+    gdk_threads_enter();
+
     gtk_init(&argc, &argv);
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(window), "Chess board");
@@ -55,8 +71,8 @@ int main(int argc, char *argv[]) {
     gtk_widget_set_size_request(window, 680, 350);
     //table = gtk_grid_new (8,8,TRUE);
     table = gtk_grid_new();
-    /*container for the labels of the gui board*/
-    GtkLabel *labelBoard[8][8];
+    
+    
     /*one is larger to make the squares wider*/
     char *pieces[64] = {"♜", "♞", "♝", "♛", "♚", "♝", "♞", "♜",
                         "♟", "♟", "♟", "♟", "♟", "♟", "♟", "♟",
@@ -114,7 +130,7 @@ int main(int argc, char *argv[]) {
              * connect to a signal that will be called 
              * after the widget is realized automatically
              * in g_signal_connect(window)
-			 * gtk_widget_realize(eventbox);
+             * gtk_widget_realize(eventbox);
              */
             p++;
         }
@@ -172,8 +188,8 @@ int main(int argc, char *argv[]) {
 
     /* create main window */
     GtkWidget *window_main;
-	GtkBuilder * builder;
-	builder = gtk_builder_new();
+    GtkBuilder * builder;
+    builder = gtk_builder_new();
     gtk_builder_add_from_file (builder,"builder.xml",NULL);
     window_main = GTK_WIDGET(gtk_builder_get_object(builder,"window"));
     g_signal_connect(window_main,"destroy",G_CALLBACK(gtk_main_quit),NULL);
@@ -185,7 +201,7 @@ int main(int argc, char *argv[]) {
     
     // create server
     button = gtk_builder_get_object(builder,"btn_create_sv");
-    g_signal_connect(button,"clicked",G_CALLBACK(create_sv),"the thi thua");
+    g_signal_connect(button,"clicked",G_CALLBACK(create_sv),"da tao server");
 
     // connect server
     button = gtk_builder_get_object(builder,"btn_connect_sv");
@@ -211,18 +227,18 @@ int main(int argc, char *argv[]) {
     gtk_style_context_add_provider_for_screen (screen, GTK_STYLE_PROVIDER (provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
 
     const gchar* home ="style.css";
-
-    GError *error = 0;
     
     gtk_css_provider_load_from_file(provider, g_file_new_for_path(home), &error);
     g_object_unref (provider);
+   
+    printf("day la socket %d\n",(int)sockfd );
+
     gtk_main();
+    close(sockfd);
+    /* Release gtk's global lock */
+    gdk_threads_leave();
+
     return 0;
-}
-static void play(GtkWidget *widget, GtkWidget *window) {
-	g_print("Play!\n");
-	gtk_widget_show_all(window);
-	gtk_widget_hide(gtk_widget_get_toplevel(widget));
 }
 static void backToMain(GtkWidget *widget, GtkWidget *window_main) {
     g_print("Main menu!\n");
@@ -235,37 +251,44 @@ static void create_sv(GtkWindow *parent, gchar *message) {
 
     flags = GTK_DIALOG_DESTROY_WITH_PARENT;
 
-    dialog = gtk_dialog_new_with_buttons("Message",parent, flags,"_OK",
+    dialog = gtk_dialog_new_with_buttons("Message",parent, flags,"OK",
         GTK_RESPONSE_NONE,NULL);
 
     content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
     label = gtk_label_new(message);
     g_signal_connect_swapped(dialog,"response", G_CALLBACK(gtk_widget_destroy),dialog);
-
-
-gtk_container_add(GTK_CONTAINER(content_area),label);
-gtk_widget_show_all(dialog);
+	gtk_container_add(GTK_CONTAINER(content_area),label);
+	make_server();
+	isServer = 1;
+	player_color = 0;
+	gtk_widget_show_all(dialog);
 }
 
 
 static void connect_sv(GtkWindow *parent, gchar *message) {
-    GtkWidget *dialog, *label, *content_area, *text_entry;
+    GtkWidget *dialog, *label, *content_area, *text_entry, *button;
     GtkDialogFlags flags;
+    flags = GTK_DIALOG_DESTROY_WITH_PARENT;    
 
-    flags = GTK_DIALOG_DESTROY_WITH_PARENT;
+    dialog = gtk_dialog_new();
+    player_color = 1;
 
-    dialog = gtk_dialog_new_with_buttons("Message",parent, flags,"_OK",
-        GTK_RESPONSE_NONE,NULL);
+    gtk_window_set_title(GTK_WINDOW(dialog),"Connect to a server... ");
 
     content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
     label = gtk_label_new(message);
     text_entry = gtk_entry_new();
+    gtk_entry_set_text(GTK_ENTRY (text_entry),"127.0.0.1");
     g_signal_connect_swapped(dialog,"response", G_CALLBACK(gtk_widget_destroy),dialog);
 
-
-gtk_container_add(GTK_CONTAINER(content_area),label);
-gtk_container_add(GTK_CONTAINER(content_area),text_entry);
-gtk_widget_show_all(dialog);
+    button = gtk_button_new_with_label("OK");
+    g_signal_connect(G_OBJECT(button),"clicked",G_CALLBACK(make_client),gtk_entry_get_text(GTK_ENTRY (text_entry)));
+	gtk_container_add(GTK_CONTAINER(content_area),label);
+	gtk_container_add(GTK_CONTAINER(content_area),text_entry);
+	gtk_container_add(GTK_CONTAINER(content_area),button);
+	isServer = 0;
+	player_color = 1;
+	gtk_widget_show_all(dialog);
 }
 int drawGuiBoard(GtkLabel *labels[][8], int cliBoard[][8]) {
     int i, j;
@@ -274,6 +297,7 @@ int drawGuiBoard(GtkLabel *labels[][8], int cliBoard[][8]) {
             gtk_label_set_text(labels[i][j], convertClipieceToGuiPiece(cliBoard[i][j]));
         }
     }
+    printf("draw\n");
     return 0;
 }
 
@@ -306,6 +330,42 @@ void long_algebraic_notation(char *note, int *move, int board[][8]) {
         note[5] = 8 - move[3] + 48;
         note[6] = 0;
     }
+}
+
+static void updateGUI() {
+    buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
+                gtk_text_buffer_get_end_iter(buffer, &txtiter);
+                if (!player) {
+                    sprintf(mnum, "%d", ++movecnt);
+                    gtk_text_buffer_insert(buffer, &txtiter, " ", -1);
+                    gtk_text_buffer_insert(buffer, &txtiter, mnum, -1);
+                    gtk_text_buffer_insert(buffer, &txtiter, ".", -1);
+                }
+                /* Update the GUI board */
+                drawGuiBoard(labelBoard, board);
+                /* Update the game info */
+                gtk_text_buffer_insert(buffer, &txtiter, note, -1);
+                player = !player;
+                if (player) {
+                    gtk_label_set_text(currentPlayer, "Current player: Black");
+                } else {
+                    gtk_label_set_text(currentPlayer, "Current player: White");
+                }
+
+                if (kingUnderAttack(player, board)) {
+                    if (player) printf("Black King is now checked!\n");
+                    if (!player) printf("White King is now checked!\n");
+                }
+                /* TODO */
+                
+                if (!hasMovement(player, board)) {
+                    if (kingUnderAttack(player, board)) {
+                        if (player) printf("Black checkmated, white wins!\n");
+                        if (!player) printf("White checkmated, black wins!\n");
+                    } else {
+                        printf("Stalemate!\n");
+                    }
+                }
 }
 
 static gboolean button_pressed(GtkWidget *ebox, GdkEventButton *event,
@@ -351,44 +411,40 @@ static gboolean button_pressed(GtkWidget *ebox, GdkEventButton *event,
                 gtk_widget_override_background_color(prevEventbox, GTK_STATE_NORMAL, &lbrown);
             }
             long_algebraic_notation(note, move, board);
-            int u = makemove(player, move, board);
-            if (!u) {
-                buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textview));
-                gtk_text_buffer_get_end_iter(buffer, &txtiter);
-                if (!player) {
-                    sprintf(mnum, "%d", ++movecnt);
-                    gtk_text_buffer_insert(buffer, &txtiter, " ", -1);
-                    gtk_text_buffer_insert(buffer, &txtiter, mnum, -1);
-                    gtk_text_buffer_insert(buffer, &txtiter, ".", -1);
+            int u;
+            u = 1; 
+            if(player == player_color) {
+                u = makemove(player, move, board);    
+                if (!u) {
+                //gui len server
+                code[0]=move[0]+'0';
+                code[1]=move[1]+'0';
+                code[2]=move[2]+'0';
+                code[3]=move[3]+'0';
+                code[4]='\0';
+                printf("%s\n",code);
+                char temp[30];
+                strcpy(temp,"MOVE	");
+                strcpy(temp+strlen(temp),code);
+                printf("%s\n",temp);
+                if(!isServer)                	{
+                		ret = sendto(sockfd, temp, BUF_SIZE, 0, (struct sockaddr *) &addr, sizeof(addr));
+                		if(ret < 0) {
+                    	printf("Error sending data\n");
+                	}
                 }
-                /* Update the GUI board */
-                drawGuiBoard(labelBoard, board);
-                /* Update the game info */
-                gtk_text_buffer_insert(buffer, &txtiter, note, -1);
 
-                player = !player;
-                if (player) {
-                    gtk_label_set_text(currentPlayer, "Current player: Black");
-                } else {
-                    gtk_label_set_text(currentPlayer, "Current player: White");
+                else {
+                	 	ret = sendto(newsockfd,temp, BUF_SIZE, 0, (struct sockaddr *) &cl_addr,len);
+                		if(ret < 0) {
+                    	printf("Error send to client\n");
+                		}
                 }
-
-                if (kingUnderAttack(player, board)) {
-                    if (player) printf("Black King is now checked!\n");
-                    if (!player) printf("White King is now checked!\n");
-                }
-                /* TODO */
-                
-                if (!hasMovement(player, board)) {
-                    if (kingUnderAttack(player, board)) {
-                        if (player) printf("Black checkmated, white wins!\n");
-                        if (!player) printf("White checkmated, black wins!\n");
-                    } else {
-                        printf("Stalemate!\n");
-                    }
-                }
+                updateGUI();
 
             }
+            }
+           
             clicks = 0;
         }
     }
