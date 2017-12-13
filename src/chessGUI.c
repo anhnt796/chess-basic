@@ -2,19 +2,9 @@
 #include <stdio.h>
 #include "int2utf8.h"
 #include "pieceConst.h"
-#include "string.h"
 
 static gboolean button_pressed(GtkWidget *, GdkEventButton *, GtkLabel *[][8]);
-static void play(GtkWidget *, GtkWidget *);
-static void backToMain(GtkWidget *, GtkWidget *);
-static void create_sv(GtkWindow *, gchar *);
-static void connect_sv(GtkWindow *, gchar *);
 
-/*Css*/
-GtkCssProvider *provider;
-GdkDisplay *display;
-GdkScreen *screen;
-/*------*/
 static const GdkRGBA green = {0.5899, 0.8867, 0.3906, 1};
 static const GdkRGBA dbrown = {0.8242, 0.5508, 0.2773, 1};
 static const GdkRGBA lbrown = {0.9805, 0.8047, 0.6094, 1};
@@ -41,18 +31,28 @@ extern void resetPassantArrays(void);
 
 extern int kingUnderAttack(int player, int board[][8]);
 
-extern int hasMovement(int player, int board[][8]);
 int main(int argc, char *argv[]) {
     /*fill the board array with pieces*/
+    //GtkWidget *window;
+
     initBoard(board);
     resetPassantArrays();
+    GtkBuilder *builder;    
     GtkWidget *window, *eventbox;
     GtkLabel *label;
     gtk_init(&argc, &argv);
-    window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    builder = gtk_builder_new();
+    gtk_builder_add_from_file(builder, "Unsaved1.glade", NULL);
+    gtk_builder_connect_signals(builder, NULL);
+
+    //window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    window = GTK_WIDGET(gtk_builder_get_object(builder, "window"));
     gtk_window_set_title(GTK_WINDOW(window), "Chess board");
     gtk_container_set_border_width(GTK_CONTAINER(window), 5);
     gtk_widget_set_size_request(window, 680, 350);
+
+
+
     //table = gtk_grid_new (8,8,TRUE);
     table = gtk_grid_new();
     /*container for the labels of the gui board*/
@@ -97,7 +97,6 @@ int main(int argc, char *argv[]) {
             }
 
             gtk_event_box_set_above_child(GTK_EVENT_BOX(eventbox), FALSE);
-
             gtk_widget_override_font((GtkWidget *) label, pango_font_description_from_string(
                     "Serif 36"));
             /*put label into eventbox*/
@@ -139,7 +138,7 @@ int main(int argc, char *argv[]) {
 
     /*make a horizontal pane*/
     //hpane = gtk_grid_new(1,2,TRUE);
-    hpane = gtk_grid_new();
+    hpane = GTK_WIDGET(gtk_builder_get_object(builder, "grid"));
     /*add the table to the horizontal pane*/
     gtk_grid_attach((GtkGrid *) hpane, table, 0, 0, 1, 1);
 
@@ -147,7 +146,8 @@ int main(int argc, char *argv[]) {
      * the first  widget is shows the current player
      * and the second widget is a textview showing last moves
      */
-    infogrid = gtk_grid_new();
+    //infogrid = gtk_grid_new();
+    infogrid = GTK_WIDGET(gtk_builder_get_object(builder, "infogrid"));
     textview = gtk_text_view_new();
     gtk_text_view_set_editable(GTK_TEXT_VIEW(textview), FALSE);
     gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(textview), FALSE);
@@ -170,103 +170,18 @@ int main(int argc, char *argv[]) {
     gtk_grid_attach((GtkGrid *) infogrid, (GtkWidget *) currentPlayer, 0, 0, 1, 1);
     gtk_grid_attach((GtkGrid *) hpane, (GtkWidget *) infogrid, 1, 0, 1, 1);
 
-    /* create main window */
-    GtkWidget *window_main;
-	GtkBuilder * builder;
-	builder = gtk_builder_new();
-    gtk_builder_add_from_file (builder,"builder.xml",NULL);
-    window_main = GTK_WIDGET(gtk_builder_get_object(builder,"window"));
-    g_signal_connect(window_main,"destroy",G_CALLBACK(gtk_main_quit),NULL);
-    GtkWidget *button;
-
-    //play
-    button = gtk_builder_get_object(builder,"btn_play");
-    g_signal_connect(button,"clicked",G_CALLBACK(play),window);
-    
-    // create server
-    button = gtk_builder_get_object(builder,"btn_create_sv");
-    g_signal_connect(button,"clicked",G_CALLBACK(create_sv),"the thi thua");
-
-    // connect server
-    button = gtk_builder_get_object(builder,"btn_connect_sv");
-    g_signal_connect(button,"clicked",G_CALLBACK(connect_sv),"Nhap IP");
-
-    //quit
-    button = gtk_builder_get_object(builder,"btn_quit");
-    g_signal_connect(button,"clicked",G_CALLBACK(gtk_main_quit),NULL);
-
-
-
 
 
     /*add table to window*/
     gtk_container_add(GTK_CONTAINER(window), hpane);
-    gtk_widget_show(window_main);
-    g_signal_connect(G_OBJECT(window), "destroy",
-                             G_CALLBACK(backToMain),window_main);
-    //css
-    provider = gtk_css_provider_new();
-    display = gdk_display_get_default();
-    screen = gdk_display_get_default_screen (display);
-    gtk_style_context_add_provider_for_screen (screen, GTK_STYLE_PROVIDER (provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
-
-    const gchar* home ="style.css";
-
-    GError *error = 0;
-    
-    gtk_css_provider_load_from_file(provider, g_file_new_for_path(home), &error);
-    g_object_unref (provider);
+    gtk_widget_show_all(window);
+    g_signal_connect_swapped(G_OBJECT(window), "destroy",
+                             G_CALLBACK(gtk_main_quit), NULL);
     gtk_main();
     return 0;
 }
-static void play(GtkWidget *widget, GtkWidget *window) {
-	g_print("Play!\n");
-	gtk_widget_show_all(window);
-	gtk_widget_hide(gtk_widget_get_toplevel(widget));
-}
-static void backToMain(GtkWidget *widget, GtkWidget *window_main) {
-    g_print("Main menu!\n");
-    gtk_widget_show_all(window_main);
-}
-
-static void create_sv(GtkWindow *parent, gchar *message) {
-    GtkWidget *dialog, *label, *content_area;
-    GtkDialogFlags flags;
-
-    flags = GTK_DIALOG_DESTROY_WITH_PARENT;
-
-    dialog = gtk_dialog_new_with_buttons("Message",parent, flags,"_OK",
-        GTK_RESPONSE_NONE,NULL);
-
-    content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
-    label = gtk_label_new(message);
-    g_signal_connect_swapped(dialog,"response", G_CALLBACK(gtk_widget_destroy),dialog);
 
 
-gtk_container_add(GTK_CONTAINER(content_area),label);
-gtk_widget_show_all(dialog);
-}
-
-
-static void connect_sv(GtkWindow *parent, gchar *message) {
-    GtkWidget *dialog, *label, *content_area, *text_entry;
-    GtkDialogFlags flags;
-
-    flags = GTK_DIALOG_DESTROY_WITH_PARENT;
-
-    dialog = gtk_dialog_new_with_buttons("Message",parent, flags,"_OK",
-        GTK_RESPONSE_NONE,NULL);
-
-    content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
-    label = gtk_label_new(message);
-    text_entry = gtk_entry_new();
-    g_signal_connect_swapped(dialog,"response", G_CALLBACK(gtk_widget_destroy),dialog);
-
-
-gtk_container_add(GTK_CONTAINER(content_area),label);
-gtk_container_add(GTK_CONTAINER(content_area),text_entry);
-gtk_widget_show_all(dialog);
-}
 int drawGuiBoard(GtkLabel *labels[][8], int cliBoard[][8]) {
     int i, j;
     for (i = 0; i < 8; i++) {
@@ -377,16 +292,6 @@ static gboolean button_pressed(GtkWidget *ebox, GdkEventButton *event,
                     if (player) printf("Black King is now checked!\n");
                     if (!player) printf("White King is now checked!\n");
                 }
-                /* TODO */
-                
-                if (!hasMovement(player, board)) {
-                    if (kingUnderAttack(player, board)) {
-                        if (player) printf("Black checkmated, white wins!\n");
-                        if (!player) printf("White checkmated, black wins!\n");
-                    } else {
-                        printf("Stalemate!\n");
-                    }
-                }
 
             }
             clicks = 0;
@@ -394,4 +299,15 @@ static gboolean button_pressed(GtkWidget *ebox, GdkEventButton *event,
     }
     return FALSE;
 }
-    
+
+void on_clicked_button1() {
+    gtk_main_quit();
+}
+
+void on_clicked_button2() {
+    gtk_main_quit();
+}
+
+void on_clicked_button3() {
+    gtk_main_quit();
+}

@@ -1,4 +1,4 @@
-
+#include <stdio.h>
 #include <stdlib.h>
 #include "pieceConst.h"
 
@@ -391,6 +391,4 @@ int attackedByKing(int colKing, int rowKing, int colSquare, int rowSquare) {
     }
     /* not attacked by king */
     return 0;
-
 }
-
