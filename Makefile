@@ -4,7 +4,7 @@ SRCDIR  = src
 CLIDIR  = cliobj
 INCDIR  = inc
 CFLAGS  = -Wall
-LDFLAGS = `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0`
+LDFLAGS = `pkg-config --cflags gtk+-3.0` `pkg-config --libs gtk+-3.0` -export-dynamic
 
 SRCS    = $(wildcard $(SRCDIR)/*.c)
 OBJS		= $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SRCS))

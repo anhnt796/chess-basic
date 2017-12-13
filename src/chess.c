@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <string.h>
 #include "pieceConst.h"
 
 extern int rook(int pos[], int player, int board[][8]);
@@ -19,10 +21,23 @@ extern void completecastlemove(int cases, int b[][8]);
 extern int checkPosition(int row, int col, int b[][8]);
 
 extern int squareUnderAttack(int colPos, int rowPos, int player, int board[][8]);
+/*
+struct wChessPieces {
+	int type;
+	struct wChessPieces next;
+	struct wChessPieces prev;
+}
 
-extern int kingUnderAttack(int player, int board[][8]);
-void resetCastle(void);
-
+struct bChessPieces {
+	int type;
+	struct bChessPieces next;
+	struct bChessPieces prev;
+}
+*/
+/*bChessPieces nodeB;
+wChessPieces nodeW;
+*/
+/*int board[8][8]; for use with cmd chess*/
 
 int enPassantW[8], enPassantB[8];
 int castleW[2], castleB[2]; // index = 0: castle kingside, index = 1: castle queenside;
@@ -63,8 +78,10 @@ void initBoard(int tmpBoard[][8]) {
         }
     }
 
-
-    resetCastle();
+    for (i = 0; i < 2; i++) {
+        castleW[i] = 1;     // white can castle kside and qside
+        castleB[i] = 1;     // black can castle kside and qside
+    }
 }
 
 /*set the en passant arrays to 0
@@ -79,14 +96,6 @@ void resetPassantArrays(void) {
     }
 }
 
-/* both sides can castle */
-void resetCastle(void) {
-    int i;
-    for (i = 0; i < 2; i++) {
-        castleW[i] = 1;     // white can castle kside and qside
-        castleB[i] = 1;     // black can castle kside and qside
-    }
-}
 /*call this procedure when a king/rook movement is made*/
 void setCastle(int cases) {
     switch (cases) {
@@ -125,6 +134,7 @@ int checkPassant(int row, int column, int player) {
         } else return 0;
     }
 }
+
 
 int checkColor(int move[], int player, int b[][8]) {
     /*[0] = curCol, [1] curRow, [2] nexCol, [3] nexRow*/
@@ -327,6 +337,7 @@ int checkMove(int input[], int player, int board[][8]) {
         }
         /*normal move*/
         else if (king(input, player, board)) {
+            printf("%d %d %d %d %d\n", input[0], input[1], input[2], input[3], player);
             completemove(input, board);
             /*move completed*/
             if (!player) {
