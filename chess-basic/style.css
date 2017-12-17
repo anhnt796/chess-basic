@@ -1,0 +1,9 @@
+#window {
+	background-color: none;
+}
+GtkButton{
+	/*min-width: 100px;
+	min-height: 50px;*/
+	margin: 40px;
+	background: green;
+}
